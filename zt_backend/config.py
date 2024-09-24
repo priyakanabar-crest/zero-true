@@ -7,7 +7,6 @@ class Settings(BaseSettings):
     user_name: str = ""
     ws_url: str = ""
     local_url: str = ""
-    comments_enabled: bool = False
 
 @lru_cache()
 def get_settings():

@@ -4,17 +4,17 @@
   "name": "Zero-True",
   "feedback.thumbsRating": true,
   "logo": {
-    "dark": "/logo/logo-full.svg",
-    "light": "/logo/logo-full.svg"
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
   },
   "favicon": "/favicon.svg",
   "colors": {
-    "primary": "#ae9ee8",
-    "light": "#ae9ee8",
-    "dark": "#ae9ee8",
+    "primary": "#0D9373",
+    "light": "#07C983",
+    "dark": "#0D9373",
     "anchors": {
-      "from": "#ae9ee8",
-      "to": "#ae9ee8"
+      "from": "#0D9373",
+      "to": "#07C983"
     }
   },
   "topbarCtaButton": {
@@ -25,22 +25,21 @@
     {
       "name": "Components",
       "url": "Components"
+    },
+    {
+      "name": "More Info",
+      "url": "api-reference"
     }
   ],
   "anchors": [
     {
-      "name": "Website",
-      "icon": "globe",
-      "url": "https://www.zero-true-cloud.com"
-    },
-    {
       "name": "Dashboard",
-      "icon": "browser",
+      "icon": "newspaper",
       "url": "https://www.zero-true-cloud.com"
     },
     {
       "name": "Github",
-      "icon": "Github",
+      "icon": "lightbulb",
       "url": "https://github.com/Zero-True/zero-true"
     },
     {
@@ -53,21 +52,19 @@
     {
       "group": "Get Started",
       "pages": [
+        "introduction",
         "quickstart",
-        "CLI",
-        "app-bar",
-        "toolbar",
-        "cell-types",
+        "development",
         "cells",
-        "state",
-        "layout",
-        "publishing"
+        "CLI"
       ]
     },
     {
         "group": "Components",
         "pages": [
         "Components/Introduction",
+        "Components/Text",
+        "Components/Textinput",
         "Components/Slider",
         "Components/Rating",
         "Components/Image",
@@ -75,17 +72,25 @@
         "Components/DataFrame",
         "Components/RangeSlider",
         "Components/NumberInput",
-        "Components/Text",
         "Components/TextInput",
         "Components/TextArea",
         "Components/SelectBox",
         "Components/Autocomplete",
         "Components/Button",
         "Components/Matplotlib",
-        "Components/PlotlyComponent",
+        "Components/Plotly",
         "Components/Timer",
         "Components/iFrame",
         "Components/HTML"
+      ]
+    },
+    {
+      "group": "Miscellaneous",
+      "pages": [
+        "api-reference/introduction",
+        "api-reference/Github",
+        "api-reference/State",
+        "api-reference/Layout"
       ]
     }
   ],

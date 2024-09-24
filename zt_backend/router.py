@@ -1,5 +1,4 @@
 import subprocess
-import shutil
 from fastapi import (
     APIRouter,
     WebSocket,
@@ -8,7 +7,6 @@ from fastapi import (
     UploadFile,
     File,
     Form,
-    HTTPException
 )
 from zt_backend.models import notebook
 from zt_backend.models.api import request
@@ -68,7 +66,6 @@ def env_data():
         "ws_url": settings.ws_url,
         "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
         "zt_version": pkg_resources.get_distribution("zero-true").version,
-        "comments_enabled": settings.comments_enabled,
     }
 
 
@@ -329,8 +326,6 @@ async def dependency_update_request(websocket: WebSocket):
 @router.websocket("/ws/notebook")
 async def load_notebook(websocket: WebSocket):
     await manager.connect(websocket)
-    if app_state.run_mode == "app":
-        save_task = asyncio.create_task(save_worker(app_state.save_queue))
     try:
         while True:
             data = await websocket.receive_json()
@@ -385,9 +380,6 @@ async def load_notebook(websocket: WebSocket):
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-    finally:
-        if app_state.run_mode == "app":
-            save_task.cancel()
 
 
 @router.websocket("/ws/stop_execution")
@@ -441,111 +433,21 @@ def share_notebook(shareRequest: request.ShareRequest):
 
 
 @router.post("/api/upload_file")
-async def upload_file(file: UploadFile = File(...), chunk_index: int = Form(...), total_chunks: int = Form(...), path: str = Form(...), file_name: str = Form(...)):
+async def upload_file(file: UploadFile = File(...), path: str = Form(...)):
     if app_state.run_mode == "dev":
         logger.debug("File upload request started")
 
         # Ensure the path exists
         os.makedirs(path, exist_ok=True)
 
-        file_path = os.path.join(path, "temp_upload_file")
-        with open(file_path, "ab") as buffer:
+        file_path = os.path.join(path, file.filename)
+        with open(file_path, "wb") as buffer:
             buffer.write(await file.read())
 
-        final_path = os.path.join(path, file_name)
-        if chunk_index == total_chunks - 1:
-            os.rename(file_path, final_path)
-
-        logger.debug(f"File upload request completed. File saved to: {final_path}")
-        return {"filename": file_name, "path": final_path}
-
-@router.post("/api/create_item")
-def create_item(item: request.CreateItemRequest):
-    if app_state.run_mode == "dev":
-        try:
-            full_path = Path(item.path) / item.name
-
-            if full_path.exists():
-                raise HTTPException(status_code=400, detail="Item already exists")
-
-            if item.type == "folder":
-                full_path.mkdir(parents=True, exist_ok=True)
-            elif item.type == "file":
-                full_path.touch()
-            else:
-                raise HTTPException(status_code=400, detail="Invalid item type")
-
-            return {"success": True, "message": f"{item.type.capitalize()} created successfully", "path": str(full_path)}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to create {item.type}: {str(e)}")
+        logger.debug(f"File upload request completed. File saved to: {file_path}")
+        return {"filename": file.filename, "path": file_path}
 
 
-@router.post("/api/rename_item")
-def rename_item(rename_request: request.RenameItemRequest):
-    if app_state.run_mode == "dev":
-        try:
-            old_path = Path(rename_request.path) / rename_request.oldName
-            new_path = Path(rename_request.path) / rename_request.newName.strip()
-
-            if not old_path.exists():
-                raise HTTPException(status_code=404, detail="Item not found")
-
-            if old_path == new_path:
-                return {
-                    "success": True,
-                    "message": f"Item renamed successfully (no change in name)",
-                    "oldPath": str(old_path),
-                    "newPath": str(new_path)
-                }
-
-            if new_path.exists():
-                raise HTTPException(status_code=400, detail="An item with the new name already exists")
-
-            os.rename(old_path, new_path)
-
-            return {
-                "success": True,
-                "message": f"Item renamed successfully from {rename_request.oldName} to {rename_request.newName}",
-                "oldPath": str(old_path),
-                "newPath": str(new_path)
-            }
-        except PermissionError:
-            raise HTTPException(status_code=403, detail="Permission denied. Unable to rename the item.")
-        except OSError as e:
-            raise HTTPException(status_code=500, detail=f"System error: {str(e)}")
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
-
-
-@router.post("/api/delete_item")
-def delete_item(delete_request: request.DeleteItemRequest):
-    try:
-        item_path = Path(delete_request.path) / delete_request.name
-
-        if not item_path.exists():
-            raise HTTPException(status_code=404, detail="Item not found")
-
-        if item_path.is_file():
-            os.remove(item_path)
-        elif item_path.is_dir():
-            if any(item_path.iterdir()):
-                raise HTTPException(status_code=400, detail="Cannot delete non-empty directory")
-            os.rmdir(item_path)
-        else:
-            raise HTTPException(status_code=400, detail="Invalid item type")
-
-        return {
-            "success": True,
-            "message": f"Item '{delete_request.name}' deleted successfully",
-            "deletedPath": str(item_path)
-        }
-    except PermissionError:
-        raise HTTPException(status_code=403, detail="Permission denied. Unable to delete the item.")
-    except OSError as e:
-        raise HTTPException(status_code=500, detail=f"System error: {str(e)}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
-    
 def get_file_type(name):
     extension = name.split(".")[-1]
     if extension in ["html", "js", "json", "md", "pdf", "png", "txt", "xls"]:
@@ -597,44 +499,37 @@ def list_children(path: str = Query(...)):
 
 @router.post("/api/add_comment")
 def add_comment(comment: request.AddCommentRequest):
-    if settings.comments_enabled:
-        app_state.save_queue.put_nowait({"add_comment": comment})
+    app_state.save_queue.put_nowait({"add_comment": comment})
 
 
 @router.post("/api/delete_comment")
 def delete_comment(comment: request.DeleteCommentRequest):
-    if settings.comments_enabled:
-        app_state.save_queue.put_nowait({"delete_comment": comment})
+    app_state.save_queue.put_nowait({"delete_comment": comment})
 
 
 @router.post("/api/edit_comment")
 def edit_comment(comment: request.EditCommentRequest):
-    if settings.comments_enabled:
-        app_state.save_queue.put_nowait({"edit_comment": comment})
+    app_state.save_queue.put_nowait({"edit_comment": comment})
 
 
 @router.post("/api/resolve_comment")
 def resolve_comment(comment: request.ResolveCommentRequest):
-    if settings.comments_enabled:
-        app_state.save_queue.put_nowait({"resolve_comment": comment})
+    app_state.save_queue.put_nowait({"resolve_comment": comment})
 
 
 @router.post("/api/add_reply")
 def add_reply(reply: request.AddReplyRequest):
-    if settings.comments_enabled:
-        app_state.save_queue.put_nowait({"add_reply": reply})
+    app_state.save_queue.put_nowait({"add_reply": reply})
 
 
 @router.post("/api/delete_reply")
 def delete_reply(reply: request.DeleteReplyRequest):
-    if settings.comments_enabled:
-        app_state.save_queue.put_nowait({"delete_reply": reply})
+    app_state.save_queue.put_nowait({"delete_reply": reply})
 
 
 @router.post("/api/edit_reply")
 def edit_reply(reply: request.EditReplyRequest):
-    if settings.comments_enabled:
-        app_state.save_queue.put_nowait({"edit_reply": reply})
+    app_state.save_queue.put_nowait({"edit_reply": reply})
 
 
 @router.on_event("shutdown")
